@@ -1,166 +1,163 @@
-Absolutely. Here's the complete end-to-end workflow we followed to run the Spring Boot Shopping Cart project in Docker. This is also the same workflow you'll use in many real-world DevOps projects.
-
-Spring Boot Project Deployment using Docker (Step-by-Step)
+Spring Boot Shopping Cart Deployment using Docker
 Step 1: Launch an Ubuntu EC2 Instance
 
-We created an Ubuntu server on AWS.
+Verify your server.
 
-Verify the OS:
+cat /etc/os-release
+
+or
 
 lsb_release -a
-
-Output:
-
-Ubuntu 26.04 LTS
-Step 2: Install Git
+Step 2: Update Ubuntu
 sudo apt update
+sudo apt upgrade -y
+Step 3: Install Git
 sudo apt install git -y
 
-Verify:
+Verify
 
 git --version
-
-Purpose:
-
-To clone the project from GitHub.
-Step 3: Install Maven
+Step 4: Install Maven
 sudo apt install maven -y
 
-Verify:
+Verify
 
 mvn -v
 
-Initially, the output showed:
+If Java is not installed, install JDK.
 
-Java Runtime (JRE)
+Step 5: Install Java JDK
 
-But there was no Java compiler (javac), which caused build issues.
-
-Step 4: Install Java JDK
-
-We discovered:
-
-javac -version
-
-Output:
-
-Command 'javac' not found
-
-So we installed the JDK:
+You finally used Java 17.
 
 sudo apt install openjdk-17-jdk -y
 
-Verify:
+Verify
 
 java -version
 javac -version
 jar --version
 
-Expected:
+All three commands should work.
 
-java 17
-javac 17
-jar 17
+Step 6: Set Java 17 as Default
 
-Why?
-
-java → Runs applications.
-javac → Compiles Java source code.
-jar → Packages compiled classes into a JAR file.
-Step 5: Set Java 17 as Default
-
-Initially Maven was using Java 25.
-
-Check:
-
-mvn -v
-
-Switch to Java 17:
+Check available Java versions
 
 sudo update-alternatives --config java
+
+Choose Java 17.
+
+Similarly
+
 sudo update-alternatives --config javac
 
-Verify:
+Choose Java 17.
 
-mvn -v
+Verify
 
-Now Maven should show Java 17.
+java -version
+javac -version
 
-Step 6: Clone the GitHub Project
-git clone <github-repository-url>
+Both should display Java 17.
 
-Go into the project:
+Step 7: Install Docker
+sudo apt install docker.io -y
 
-cd kkfunda-ekart
+Start Docker
 
-Verify:
+sudo systemctl start docker
 
+Enable Docker
+
+sudo systemctl enable docker
+
+Verify
+
+docker --version
+Step 8: Give Docker Permission
+
+Add current user
+
+sudo usermod -aG docker ubuntu
+
+Refresh group
+
+newgrp docker
+
+Verify
+
+groups
+
+Output should contain
+
+docker
+Step 9: Clone GitHub Repository
+git clone <github-url>
+
+Example
+
+git clone https://github.com/xxxxx/shopping-cart.git
+
+Move into project
+
+cd shopping-cart
+Step 10: Check Project Structure
 ls
 
-Output:
+Expected
 
 docker
 pom.xml
 src
 README.md
-Step 7: Build the Project
-
-Run:
-
+Step 11: Build Maven Project
 mvn clean package
 
-Purpose:
+This performs
 
-Downloads dependencies.
-Compiles the Java code.
-Runs tests.
-Creates the executable JAR.
-Step 8: Fix the Build Error
+Downloads dependencies
+Compiles Java source code
+Runs tests
+Creates executable JAR
+If Maven Build Fails
 
-We encountered:
+We faced this issue.
 
 Invalid CEN header
-aspectjweaver-1.8.10.jar
 
-Cause:
+Reason:
 
-A corrupted Maven dependency in the local repository.
+Corrupted Maven dependency.
 
-Fix:
+Fix
+
+Delete corrupted dependency
 
 rm -rf ~/.m2/repository/org/aspectj/aspectjweaver
 
-Download it again:
+Download again
 
 mvn dependency:get -Dartifact=org.aspectj:aspectjweaver:1.8.10
 
-Then rebuild:
+Run build again
 
 mvn clean package
-
-Now the build succeeded.
-
-Step 9: Verify the JAR File
-
-Check:
-
+Step 12: Verify JAR
 ls target
 
-Expected:
+Expected
 
 shopping-cart-0.0.1-SNAPSHOT.jar
+Step 13: Verify Dockerfile
 
-This JAR contains the compiled Spring Boot application.
-
-Step 10: Understand the Dockerfile
-
-Dockerfile:
+Your Dockerfile
 
 FROM openjdk:8u151-jdk-alpine3.7
 
 EXPOSE 8070
 
-ENV APP_HOME=/usr/src/app
+ENV APP_HOME /usr/src/app
 
 COPY target/shopping-cart-0.0.1-SNAPSHOT.jar $APP_HOME/app.jar
 
@@ -168,171 +165,127 @@ WORKDIR $APP_HOME
 
 ENTRYPOINT exec java -jar app.jar
 
-Explanation:
+Notice
 
-FROM → Base image with Java installed.
-EXPOSE → Documents port 8070.
-ENV → Defines environment variables.
-COPY → Copies the JAR into the image.
-WORKDIR → Sets the working directory.
-ENTRYPOINT → Starts the application when the container runs.
-Step 11: Build the Docker Image
+shopping-cart-0.0.1-SNAPSHOT.jar
 
-Initially we ran:
+is copied as
 
-docker build -t tmalli834/image:v1 .
+app.jar
 
-Error:
+inside the image.
 
-Dockerfile not found
+Step 14: Build Docker Image
 
-Reason:
-
-The Dockerfile was inside the docker directory.
-
-Correct command:
+Run from project root
 
 docker build -t tmalli834/image:v1 -f docker/Dockerfile .
-Step 12: Fix Docker Permission Error
 
-We got:
+Verify
 
-permission denied while trying to connect to docker.sock
-
-Reason:
-
-The ubuntu user wasn't using the docker group in the current session.
-
-Fix:
-
-sudo usermod -aG docker ubuntu
-newgrp docker
-
-Verify:
-
-groups
-
-You should see:
-
-docker
-Step 13: Verify the Image
 docker images
 
-Output:
+Example
 
-openjdk:8u151-jdk-alpine3.7
-tmalli834/image:v1
+REPOSITORY          TAG
 
-Why two images?
-
-openjdk → Base image.
-tmalli834/image:v1 → Your application image built on top of the base image.
-Step 14: Run the Container
-
-Initially we ran:
-
-docker run --name con1 tmalli834/image:v1
-
-The application started, but it wasn't accessible from outside.
-
-Step 15: Check Running Containers
+tmalli834/image     v1
+openjdk             8u151-jdk-alpine3.7
+Step 15: Run Container
+docker run -d --name con1 -p 8070:8070 tmalli834/image:v1
+Step 16: Verify Container
 docker ps
 
-Output:
+Example
 
-8070/tcp
+CONTAINER ID
 
-This means the port wasn't published to the host.
+con1
 
-Step 16: Stop and Remove the Container
-docker stop con1
-docker rm con1
-Step 17: Run with Port Mapping
-docker run -d \
-  --name con1 \
-  -p 8070:8070 \
-  tmalli834/image:v1
-
-Now docker ps should show:
-
-0.0.0.0:8070->8070/tcp
-
-This maps:
-
-Host port: 8070
-Container port: 8070
-Step 18: Check Logs
+Up
+Step 17: Check Logs
 docker logs con1
 
-Expected:
+Expected
 
 Tomcat started on port(s): 8070
 Started ShoppingCartApplication
+Step 18: Verify JAR inside Container
+docker exec -it con1 ls -l /usr/src/app
 
-This confirms the application started successfully.
+Output
 
-Step 19: Open the Application
+app.jar
 
-In your browser:
+Notice
 
-http://<EC2-PUBLIC-IP>:8070/home
+Docker renamed
 
-For example:
+shopping-cart-0.0.1-SNAPSHOT.jar
 
-http://13.232.205.139:8070/home
+to
 
-Make sure your AWS Security Group allows inbound traffic on port 8070.
+app.jar
+Step 19: Access Application
 
-Step 20: Log In
+Browser
 
-Use the credentials from the project's README:
+http://<EC2-Public-IP>:8070/home
 
-Admin:
+Example
 
-Username: admin
-Password: admin
+http://54.xx.xx.xx:8070/home
+Step 20: Login
 
-User:
+Admin
 
-Username: user
-Password: password
-Overall Flow
-Launch EC2
-      │
-      ▼
-Install Git
-      │
-      ▼
-Install Maven
-      │
-      ▼
-Install JDK
-      │
-      ▼
-Clone GitHub Project
-      │
-      ▼
+Username : admin
+
+Password : admin
+
+User
+
+Username : user
+
+Password : password
+Step 21: Push Image to Docker Hub (Optional)
+
+Login
+
+docker login
+
+Push
+
+docker push tmalli834/image:v1
+Step 22: Stop Container
+docker stop con1
+Step 23: Remove Container
+docker rm con1
+Step 24: Remove Image
+docker rmi tmalli834/image:v1
+Summary of the Commands You Used
+sudo apt update
+sudo apt install git -y
+sudo apt install maven -y
+sudo apt install openjdk-17-jdk -y
+sudo apt install docker.io -y
+
+git clone <repo-url>
+
+cd shopping-cart
+
 mvn clean package
-      │
-      ▼
-Creates shopping-cart.jar
-      │
-      ▼
-docker build
-      │
-      ▼
-Creates Docker Image
-      │
-      ▼
-docker run -p 8070:8070
-      │
-      ▼
-Container Starts
-      │
-      ▼
-Tomcat Starts
-      │
-      ▼
-Application Accessible in Browser
 
-This is a complete CI/CD-style deployment flow and is very similar to what you'll do in real DevOps environments, except that in production these steps are typically automated by tools like Jenkins, Docker, and deployment pipelines.
+docker build -t tmalli834/image:v1 -f docker/Dockerfile .
+
+docker run -d --name con1 -p 8070:8070 tmalli834/image:v1
+
+docker ps
+
+docker logs con1
+
+docker exec -it con1 ls -l /usr/src/app
+
+http://<EC2-Public-IP>:8070/home
+
+This is the same workflow followed in many real-world CI/CD pipelines (Jenkins → Maven → Docker → Docker Hub → Deployment), making it a good reference for interviews and future projects.
